@@ -1,4 +1,6 @@
 import Navbar from "./Navbar";
+import Features from "./Features";
+import Footer from "./Footer";
 
 export default function Hero() {
   return (
@@ -20,6 +22,10 @@ export default function Hero() {
           Get Started
         </button>
       </main>
+
+      <Features />
+
+      <Footer />
     </>
   );
 }
