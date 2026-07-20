@@ -1,14 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/Shell";
 import { Card, GradientButton } from "@/components/ui";
 import { remote } from "@/lib/api";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   // "login" = existing user, "register" = create account
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
@@ -20,13 +17,11 @@ export default function LoginPage() {
   async function handleSubmit() {
     setError(null);
 
-    // If there's no backend configured, we can't authenticate for real.
     if (!remote) {
       setError("No backend configured (NEXT_PUBLIC_API_URL is missing).");
       return;
     }
 
-    // Basic guard so we don't send empty requests.
     if (!email || !password || (mode === "register" && !name)) {
       setError("Please fill in all fields.");
       return;
@@ -39,18 +34,30 @@ export default function LoginPage() {
       } else {
         await remote.auth.login({ email, password });
       }
-      // On success the client has stored the JWT. New users go to onboarding,
-      // returning users go straight to the dashboard.
-      router.push(mode === "register" ? "/onboarding" : "/dashboard");
+
+      // IMPORTANT: wipe any cached state from a previous user/guest session
+      // so the next load doesn't show stale (or seed) data. The auth token
+      // is stored under its own key by the client, so we only clear the
+      // app-state cache here.
+      try {
+        window.localStorage.removeItem("momentum.state.v1");
+      } catch {
+        /* ignore storage errors */
+      }
+
+      // Use a HARD navigation (full page reload) instead of router.push.
+      // This re-mounts the whole app so the store runs its data load while
+      // authenticated, fetching THIS user's data from the backend. A
+      // client-side router.push would keep the already-loaded (stale) state.
+      const destination = mode === "register" ? "/onboarding" : "/dashboard";
+      window.location.href = destination;
     } catch (err: unknown) {
-      // ApiError carries a human-readable message from the backend.
       const message =
         err && typeof err === "object" && "message" in err
           ? String((err as { message: unknown }).message)
           : "Something went wrong. Please try again.";
       setError(message);
-    } finally {
-      setLoading(false);
+      setLoading(false); // only reset on error; on success we're navigating away
     }
   }
 
@@ -91,7 +98,6 @@ export default function LoginPage() {
               : "Start designing your life today."}
           </p>
 
-          {/* Name field only appears when creating an account */}
           {mode === "register" && (
             <input
               value={name}
@@ -118,7 +124,6 @@ export default function LoginPage() {
             className="mt-2.5 w-full rounded-xl border border-line bg-raise px-4 py-2.5 text-[13px] text-ink placeholder:text-dim focus:border-indigo focus:outline-none"
           />
 
-          {/* Error message from the backend, if any */}
           {error && (
             <p className="mt-3 text-[12px] text-red-400">{error}</p>
           )}
@@ -135,7 +140,12 @@ export default function LoginPage() {
           </GradientButton>
 
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => {
+              // Guest mode: clear any prior user's cache, then hard-nav so
+              // the app loads fresh guest/seed state cleanly.
+              try { window.localStorage.removeItem("momentum.state.v1"); } catch {}
+              window.location.href = "/dashboard";
+            }}
             className="mt-4 w-full text-center text-[12px] text-dim transition hover:text-mute"
           >
             Continue as guest
