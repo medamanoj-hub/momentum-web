@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import Landing from "./landing";
 
 export default function Root() {
-  redirect("/dashboard");
+  return <Landing />;
 }
